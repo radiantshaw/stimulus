@@ -1,7 +1,5 @@
 import { Application } from "@hotwired/stimulus"
-import Turbolinks from "turbolinks"
-
-Turbolinks.start()
+import "@hotwired/turbo"
 
 const application = Application.start()
 
@@ -16,3 +14,6 @@ application.register("hello", HelloController)
 
 import SlideshowController from "./controllers/slideshow_controller"
 application.register("slideshow", SlideshowController)
+
+import TabsController from "./controllers/tabs_controller"
+application.register("tabs", TabsController)

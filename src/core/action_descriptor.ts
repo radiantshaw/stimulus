@@ -1,25 +1,64 @@
-import { EventModifiers } from "./event_modifiers"
+export type ActionDescriptorFilters = Record<string, ActionDescriptorFilter>
+export type ActionDescriptorFilter = (options: ActionDescriptorFilterOptions) => boolean
+type ActionDescriptorFilterOptions = {
+  name: string
+  value: boolean
+  event: Event
+  element: Element
+}
+
+export const defaultActionDescriptorFilters: ActionDescriptorFilters = {
+  stop({ event, value }) {
+    if (value) event.stopPropagation()
+
+    return true
+  },
+
+  prevent({ event, value }) {
+    if (value) event.preventDefault()
+
+    return true
+  },
+
+  self({ event, value, element }) {
+    if (value) {
+      return element === event.target
+    } else {
+      return true
+    }
+  },
+}
 
 export interface ActionDescriptor {
   eventTarget: EventTarget
-  eventOptions: EventModifiers
+  eventOptions: AddEventListenerOptions
   eventName: string
   identifier: string
   methodName: string
+  keyFilter: string
 }
 
-// capture nos.:            12   23 4               43   1 5   56 7      768 9  98
-const descriptorPattern = /^((.+?)(@(window|document))?->)?(.+?)(#([^:]+?))(:(.+))?$/
+// capture nos.:               1   1     2   2      3               3      4   4    5      5     6  6
+const descriptorPattern = /^(?:(.+?)(?:\.(.+?))?(?:@(window|document))?->)?(.+?)(?:#([^:]+?))(?::(.+))?$/
 
 export function parseActionDescriptorString(descriptorString: string): Partial<ActionDescriptor> {
   const source = descriptorString.trim()
   const matches = source.match(descriptorPattern) || []
+  let eventName = matches[1]
+  let keyFilter = matches[2]
+
+  if (keyFilter && !["keydown", "keyup", "keypress"].includes(eventName)) {
+    eventName += `.${keyFilter}`
+    keyFilter = ""
+  }
+
   return {
-    eventTarget:  parseEventTarget(matches[4]),
-    eventName:    matches[2],
-    eventOptions: matches[9] ? parseEventOptions(matches[9]) : {},
-    identifier:   matches[5],
-    methodName:   matches[7]
+    eventTarget: parseEventTarget(matches[3]),
+    eventName,
+    eventOptions: matches[6] ? parseEventOptions(matches[6]) : {},
+    identifier: matches[4],
+    methodName: matches[5],
+    keyFilter,
   }
 }
 
@@ -31,10 +70,10 @@ function parseEventTarget(eventTargetName: string): EventTarget | undefined {
   }
 }
 
-function parseEventOptions(eventOptions: string): EventModifiers {
-  return eventOptions.split(":").reduce((options, token) =>
-    Object.assign(options, { [token.replace(/^!/, "")]: !/^!/.test(token) })
-  , {})
+function parseEventOptions(eventOptions: string): AddEventListenerOptions {
+  return eventOptions
+    .split(":")
+    .reduce((options, token) => Object.assign(options, { [token.replace(/^!/, "")]: !/^!/.test(token) }), {})
 }
 
 export function stringifyEventTarget(eventTarget: EventTarget) {

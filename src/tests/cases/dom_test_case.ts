@@ -1,18 +1,18 @@
 import { TestCase } from "./test_case"
 
 interface TriggerEventOptions {
-  bubbles?: boolean,
+  bubbles?: boolean
   setDefaultPrevented?: boolean
 }
 
 const defaultTriggerEventOptions: TriggerEventOptions = {
-   bubbles: true,
-   setDefaultPrevented: true
+  bubbles: true,
+  setDefaultPrevented: true,
 }
 
 export class DOMTestCase extends TestCase {
-  fixtureSelector: string = "#qunit-fixture"
-  fixtureHTML: string = ""
+  fixtureSelector = "#qunit-fixture"
+  fixtureHTML = ""
 
   async runTest(testName: string) {
     await this.renderFixture()
@@ -41,10 +41,19 @@ export class DOMTestCase extends TestCase {
 
     // IE <= 11 does not set `defaultPrevented` when `preventDefault()` is called on synthetic events
     if (setDefaultPrevented) {
-      event.preventDefault = function() {
+      event.preventDefault = function () {
         Object.defineProperty(this, "defaultPrevented", { get: () => true, configurable: true })
       }
     }
+
+    eventTarget.dispatchEvent(event)
+    await this.nextFrame
+    return event
+  }
+
+  async triggerKeyboardEvent(selectorOrTarget: string | EventTarget, type: string, options: KeyboardEventInit = {}) {
+    const eventTarget = typeof selectorOrTarget == "string" ? this.findElement(selectorOrTarget) : selectorOrTarget
+    const event = new KeyboardEvent(type, options)
 
     eventTarget.dispatchEvent(event)
     await this.nextFrame
@@ -61,10 +70,10 @@ export class DOMTestCase extends TestCase {
   }
 
   findElements(...selectors: string[]) {
-    return selectors.map(selector => this.findElement(selector))
+    return selectors.map((selector) => this.findElement(selector))
   }
 
   get nextFrame(): Promise<any> {
-    return new Promise(resolve => requestAnimationFrame(resolve))
+    return new Promise((resolve) => requestAnimationFrame(resolve))
   }
 }

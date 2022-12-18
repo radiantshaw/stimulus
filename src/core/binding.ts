@@ -3,8 +3,6 @@ import { ActionEvent } from "./action_event"
 import { Context } from "./context"
 import { Controller } from "./controller"
 import { Scope } from "./scope"
-import { EventModifiers } from "./event_modifiers"
-
 export class Binding {
   readonly context: Context
   readonly action: Action
@@ -22,7 +20,7 @@ export class Binding {
     return this.action.eventTarget
   }
 
-  get eventOptions(): EventModifiers {
+  get eventOptions(): AddEventListenerOptions {
     return this.action.eventOptions
   }
 
@@ -31,10 +29,7 @@ export class Binding {
   }
 
   handleEvent(event: Event) {
-    if (this.willBeInvokedByEvent(event)) {
-      this.processStopPropagation(event);
-      this.processPreventDefault(event);
-
+    if (this.willBeInvokedByEvent(event) && this.applyEventModifiers(event)) {
       this.invokeWithEvent(event)
     }
   }
@@ -51,16 +46,23 @@ export class Binding {
     throw new Error(`Action "${this.action}" references undefined method "${this.methodName}"`)
   }
 
-  private processStopPropagation(event: Event) {
-    if (this.eventOptions.stop) {
-      event.stopPropagation();
-    }
-  }
+  private applyEventModifiers(event: Event): boolean {
+    const { element } = this.action
+    const { actionDescriptorFilters } = this.context.application
 
-  private processPreventDefault(event: Event) {
-    if (this.eventOptions.prevent) {
-      event.preventDefault();
+    let passes = true
+
+    for (const [name, value] of Object.entries(this.eventOptions)) {
+      if (name in actionDescriptorFilters) {
+        const filter = actionDescriptorFilters[name]
+
+        passes = passes && filter({ name, value, event, element })
+      } else {
+        continue
+      }
     }
+
+    return passes
   }
 
   private invokeWithEvent(event: Event) {
@@ -70,7 +72,7 @@ export class Binding {
       const actionEvent: ActionEvent = Object.assign(event, { params })
       this.method.call(this.controller, actionEvent)
       this.context.logDebugActivity(this.methodName, { event, target, currentTarget, action: this.methodName })
-    } catch (error) {
+    } catch (error: any) {
       const { identifier, controller, element, index } = this
       const detail = { identifier, controller, element, index, event }
       this.context.handleError(error, `invoking action "${this.action}"`, detail)
@@ -79,6 +81,11 @@ export class Binding {
 
   private willBeInvokedByEvent(event: Event): boolean {
     const eventTarget = event.target
+
+    if (event instanceof KeyboardEvent && this.action.isFilterTarget(event)) {
+      return false
+    }
+
     if (this.element === eventTarget) {
       return true
     } else if (eventTarget instanceof Element && this.element.contains(eventTarget)) {
